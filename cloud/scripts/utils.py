@@ -1,6 +1,7 @@
 import os
 from typing import List, Tuple, Union
 from PIL import Image
+import imageio.v2 as imageio
 import numpy as np
 
 
@@ -12,7 +13,7 @@ def get_filenames(input_dir: str) -> List[str]:
     Returns:
         List[str]: List of image filenames.
     """
-    return NotImplementedError
+    return [os.path.join(input_dir, f) for f in sorted(os.listdir(input_dir)) if f.lower().endswith(".jpg")]
 
 
 def load_image(
@@ -28,7 +29,15 @@ def load_image(
     Returns:
         np.ndarray: Numpy array of the image.
     """
-    return NotImplementedError
+    try:
+        with Image.open(path) as img:
+            img = img.convert(convert)
+            if crop:
+                img = img.crop(crop)
+            return np.array(img)
+    except Exception as e:
+        print(f"[!] Failed to load image {path}: {e}")
+        return None
 
 
 def patchify(
@@ -42,11 +51,18 @@ def patchify(
     Returns:
         List[np.ndarray]: A list of patches.
     """
-    return NotImplementedError
+    h, w = patch_size
+    patches = []
+    for i in range(0, img.shape[0], h):
+        for j in range(0, img.shape[1], w):
+            patch = img[i:i+h, j:j+w]
+            if patch.shape[0] == h and patch.shape[1] == w:
+                patches.append(patch)
+    return patches
 
 
 def save_patches(
-        patches: List[np.ndarray], 
+        patches: List[np.ndarray],
         output_dir: str,
         starting_index: int) -> None:
     """Save the synthetic clouds to the output directory.
@@ -57,4 +73,7 @@ def save_patches(
     Returns:
         None
     """
-    return NotImplementedError
+    os.makedirs(output_dir, exist_ok=True)
+    for i, patch in enumerate(patches):
+        filename = os.path.join(output_dir, f"patch_{starting_index + i:05d}.jpg")
+        imageio.imwrite(filename, patch)

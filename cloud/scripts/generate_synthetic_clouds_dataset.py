@@ -4,6 +4,7 @@ import numpy as np
 from PIL import Image
 from tqdm import tqdm
 import argparse
+from noise import pnoise2
 from utils import load_image, patchify, save_patches, get_filenames
 
 
@@ -56,7 +57,18 @@ def generate_synthetic_clouds(
     Returns:
         A numpy array of shape shape with the generated noise.
     """
-    return NotImplementedError
+    height, width = shape
+    noise = np.zeros((height, width), dtype=np.float32)
+
+    for i in range(height):
+        for j in range(width):
+            x = i / res[0]
+            y = j / res[1]
+            noise[i][j] = pnoise2(x, y, octaves=octaves)
+
+    # Normalize to range [0, 255]
+    noise = (noise - noise.min()) / (noise.max() - noise.min()) * 255
+    return noise.astype(np.uint8)
 
 
 def apply_synthetic_clouds_to_mask(
@@ -73,11 +85,13 @@ def apply_synthetic_clouds_to_mask(
         A numpy array of the same shape as the mask with the noise
         applied.
     """
-    return NotImplementedError
+    combined = noise.astype(np.int16) + mask.astype(np.int16)
+    combined = np.clip(combined, 0, 255)
+    return combined.astype(np.uint8)
 
 
 def process(
-        N: int, 
+        N: int,
         input_mask: str,
         patch_size: Tuple[int, int],
         crop: Tuple[int, int, int, int],
@@ -94,8 +108,18 @@ def process(
     Returns:
         None
     """
-    return NotImplementedError
+    mask = load_image(input_mask, convert="L")  # grayscale
+    if mask is None:
+        print(f"[!] Failed to load mask from {input_mask}")
+        return
 
+    for i in tqdm(range(N)):
+        noise = generate_synthetic_clouds(mask.shape, res=(64, 64), octaves=5)
+        cloud_img = apply_synthetic_clouds_to_mask(noise, mask)
+        # Crop to match real data
+        cropped = cloud_img[crop[1]:crop[3], crop[0]:crop[2]]
+        patches = patchify(cropped, patch_size)
+        save_patches(patches, output_dir, starting_index=i * len(patches))
 
 def main():
     """

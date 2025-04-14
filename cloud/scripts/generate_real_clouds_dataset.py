@@ -36,7 +36,7 @@ def build_argparser() -> argparse.ArgumentParser:
 
 
 def process(
-        filenames: List[str], 
+        filenames: List[str],
         patch_size: Tuple[int, int],
         crop: Tuple[int, int, int, int],
         output_dir: str) -> None:
@@ -51,7 +51,16 @@ def process(
     Returns:
         None
     """
-    return NotImplementedError
+    patch_index = 0  # Global patch index for naming
+
+    for fname in filenames:
+        img = load_image(fname, crop=crop)
+        if img is None:
+            continue
+
+        patches = patchify(img, patch_size=patch_size)
+        save_patches(patches, output_dir, starting_index=patch_index)
+        patch_index += len(patches)
 
 
 def main():
