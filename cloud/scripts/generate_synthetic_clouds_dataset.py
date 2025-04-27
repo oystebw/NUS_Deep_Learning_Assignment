@@ -7,6 +7,8 @@ import argparse
 from noise import pnoise2
 from utils import load_image, patchify, save_patches, get_filenames
 
+from multiprocessing import Pool, cpu_count
+from functools import partial
 
 def build_argparser() -> argparse.ArgumentParser:
     """
@@ -89,13 +91,23 @@ def apply_synthetic_clouds_to_mask(
     combined = np.clip(combined, 0, 255)
     return combined.astype(np.uint8)
 
+def _worker(start: int, end: int, mask_array: np.ndarray, patch_size, crop, output_dir):
+    for i in range(start, end):
+        if i % 100 == 0:
+            print(f"[Worker {start}-{end}] Processed image {i}", flush=True)
+        noise = generate_synthetic_clouds(mask_array.shape, res=(64, 64), octaves=5)
+        cloud_img = apply_synthetic_clouds_to_mask(noise, mask_array)
+        cropped = cloud_img[crop[1]:crop[3], crop[0]:crop[2]]
+        patches = patchify(cropped, patch_size)
+        save_patches(patches, output_dir, starting_index=i * len(patches))
 
 def process(
         N: int,
         input_mask: str,
         patch_size: Tuple[int, int],
         crop: Tuple[int, int, int, int],
-        output_dir: str) -> None:
+        output_dir: str,
+        num_workers: int = 16) -> None:
     """
     Process the real clouds by loading the images, patchifying them,
     and saving the patches to the output directory.
@@ -108,23 +120,29 @@ def process(
     Returns:
         None
     """
-    mask = load_image(input_mask, convert="L")  # grayscale
+    if num_workers is None:
+        num_workers = cpu_count()
+
+    mask = load_image(input_mask, convert="L")
     if mask is None:
         print(f"[!] Failed to load mask from {input_mask}")
         return
 
-    for i in tqdm(range(N)):
-        noise = generate_synthetic_clouds(mask.shape, res=(64, 64), octaves=5)
-        cloud_img = apply_synthetic_clouds_to_mask(noise, mask)
-        # Crop to match real data
-        cropped = cloud_img[crop[1]:crop[3], crop[0]:crop[2]]
-        patches = patchify(cropped, patch_size)
-        save_patches(patches, output_dir, starting_index=i * len(patches))
+    chunk_size = (N + num_workers - 1) // num_workers
+    ranges = [(i * chunk_size, min((i + 1) * chunk_size, N)) for i in range(num_workers)]
+
+    # Partial function with shared args
+    worker_fn = partial(_worker,
+                        mask_array=mask,
+                        patch_size=patch_size,
+                        crop=crop,
+                        output_dir=output_dir)
+
+    # Start pool
+    with Pool(processes=num_workers) as pool:
+        list(tqdm(pool.starmap(worker_fn, ranges), total=len(ranges)))
 
 def main():
-    """
-    Main function to execute the script.
-    """
     parser = build_argparser()
     args = parser.parse_args()
     filenames = get_filenames(args.input_dir)

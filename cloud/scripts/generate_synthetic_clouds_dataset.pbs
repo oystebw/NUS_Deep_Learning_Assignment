@@ -1,0 +1,13 @@
+#!/bin/bash
+
+#PBS -l select=1:ncpus=32:mem=128GB
+#PBS -l walltime=3:00:00
+#PBS -N process
+#PBS -o process_output.log
+#PBS -e process_error.log
+
+cd /scratch/e1456870/NUS_Deep_Learning_Assignment/cloud/scripts
+
+source /scratch/e1456870/NUS_Deep_Learning_Assignment/venv/bin/activate
+
+./generate_synthetic_clouds_dataset.sh 2>&1 | tee process.log

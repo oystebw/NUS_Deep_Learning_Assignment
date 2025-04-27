@@ -9,3 +9,5 @@ dependencies:
   - numpy==1.19.2
   - tqdm
   - requests
+  - opencv-python==4.11.0.86
+  - imageio

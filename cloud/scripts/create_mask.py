@@ -3,9 +3,6 @@ import numpy as np
 from PIL import Image
 
 def extract_green_border_mask(image_path: str) -> np.ndarray:
-    """
-    Convert an image to a binary mask of green borders.
-    """
     # Load image in RGB, then convert to HSV
     img = cv2.imread(image_path)
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
@@ -18,7 +15,7 @@ def extract_green_border_mask(image_path: str) -> np.ndarray:
     mask = cv2.inRange(hsv, lower_green, upper_green)
 
     kernel = np.ones((2, 2), np.uint8)
-    mask = cv2.dilate(mask, kernel, iterations=1)  # or use erode
+    mask = cv2.dilate(mask, kernel, iterations=1)
 
 
     return mask  # dtype=uint8, values 0 or 255
